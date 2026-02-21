@@ -35,6 +35,11 @@ class TokenRefresh(BaseModel):
     refresh_token: str
 
 
+class TokenData(BaseModel):
+    """Token payload data"""
+    user_id: str
+
+
 class UserResponse(BaseModel):
     """User response schema"""
     id: UUID

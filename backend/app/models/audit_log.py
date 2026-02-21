@@ -80,7 +80,7 @@ class AuditLog(Base):
     # Details
     description = Column(Text, nullable=True)
     changes = Column(JSONB, nullable=True)  # {"field": {"old": "...", "new": "..."}}
-    metadata = Column(JSONB, nullable=True)  # Additional context
+    log_metadata = Column("metadata", JSONB, nullable=True)  # Additional context
     
     # When
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)

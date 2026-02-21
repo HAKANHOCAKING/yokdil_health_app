@@ -38,7 +38,7 @@ class Session(Base):
     ended_at = Column(DateTime, nullable=True)
     total_questions = Column(Integer, default=0, nullable=False)
     correct_count = Column(Integer, default=0, nullable=False)
-    metadata = Column(JSONB, nullable=True)  # {time_limit, tags_filter, etc.}
+    session_metadata = Column("metadata", JSONB, nullable=True)  # {time_limit, tags_filter, etc.}
     
     # Relationships
     user = relationship("User", back_populates="sessions")

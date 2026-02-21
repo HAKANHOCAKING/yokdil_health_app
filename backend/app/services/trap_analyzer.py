@@ -2,7 +2,6 @@
 Trap Analyzer Service - AI-powered ÖSYM trap detection and explanation
 """
 from typing import Dict, Optional
-import openai
 from app.core.config import settings
 
 
@@ -25,9 +24,13 @@ class TrapAnalyzerService:
     
     def __init__(self):
         """Initialize OpenAI client if API key available"""
-        self.use_ai = bool(settings.OPENAI_API_KEY)
+        self.use_ai = bool(getattr(settings, 'OPENAI_API_KEY', ''))
         if self.use_ai:
-            openai.api_key = settings.OPENAI_API_KEY
+            try:
+                import openai
+                openai.api_key = settings.OPENAI_API_KEY
+            except ImportError:
+                self.use_ai = False
     
     async def analyze_trap(
         self,
@@ -100,6 +103,7 @@ IMPORTANT:
 """
         
         try:
+            import openai
             response = openai.ChatCompletion.create(
                 model=settings.OPENAI_MODEL,
                 messages=[

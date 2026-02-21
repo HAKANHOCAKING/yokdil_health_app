@@ -43,7 +43,7 @@ class VocabWord(Base):
     __tablename__ = "vocab_words"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    set_id = Column(String(255), ForeignKey("vocab_sets.id", ondelete="CASCADE"), nullable=False, index=True)
+    set_id = Column(UUID(as_uuid=True), ForeignKey("vocab_sets.id", ondelete="CASCADE"), nullable=False, index=True)
     english = Column(String(500), nullable=False)
     turkish = Column(String(500), nullable=False)
     example_sentence = Column(Text, nullable=True)
