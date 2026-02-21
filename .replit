@@ -1,0 +1,16 @@
+[run]
+language = "python3"
+run = "cd backend && pip install -r requirements.txt && alembic upgrade head && python scripts/seed_trap_types.py || true && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+[nix]
+channel = "stable-23_11"
+
+[deployment]
+run = ["sh", "-c", "cd backend && pip install -r requirements.txt && alembic upgrade head && python scripts/seed_trap_types.py || true && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+deploymentTarget = "cloudrun"
+
+[env]
+PYTHONPATH = "${REPL_HOME}/backend:${PYTHONPATH}"
+DATABASE_URL = "postgresql://user:password@db.thin.dev:5432/yokdil_db"
+SECRET_KEY = "replit-secret-key-change-in-production-min-32-chars"
+ENVIRONMENT = "development"

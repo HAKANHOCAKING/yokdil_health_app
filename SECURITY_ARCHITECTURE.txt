@@ -1,0 +1,282 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                 YÖKDİL HEALTH APP - SECURITY ARCHITECTURE                     ║
+║                        Enterprise-Grade Security v2.0                          ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            CLIENT LAYER (Flutter)                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                      │
+│  │   Student    │  │   Teacher    │  │    Admin     │                      │
+│  │   Mobile     │  │   Mobile     │  │  Web Panel   │                      │
+│  └──────────────┘  └──────────────┘  └──────────────┘                      │
+│         │                 │                   │                              │
+│         └─────────────────┴───────────────────┘                              │
+│                           │                                                  │
+│                    [HTTPS/TLS 1.3]                                           │
+│                           │                                                  │
+│         ┌─────────────────▼──────────────────┐                              │
+│         │  Secure Storage (Keychain/Store)   │                              │
+│         │  - Access Token (15 min)           │                              │
+│         │  - Refresh Token (30 days)         │                              │
+│         │  - Device ID (UUID)                │                              │
+│         └────────────────────────────────────┘                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+                                    ▼
+                                    
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          SECURITY LAYER (Middleware)                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  1. RATE LIMITING (Redis)                                           │   │
+│  │     • Login: 5/min      • Register: 3/min    • PDF: 10/hour        │   │
+│  │     • AI endpoints: 20-30/min    • General: 60/min                 │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  2. AUTHENTICATION & AUTHORIZATION                                  │   │
+│  │     • JWT Validation (15-min expiry)                                │   │
+│  │     • Token Reuse Detection                                         │   │
+│  │     • Device Tracking                                               │   │
+│  │     • RBAC: Student/Teacher/Admin                                   │   │
+│  │     • ABAC: Tenant-scoped, Class-scoped                            │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  3. AUDIT LOGGING                                                   │   │
+│  │     • Request ID correlation                                        │   │
+│  │     • WHO-WHAT-WHEN-WHERE tracking                                 │   │
+│  │     • Action categorization (15+ types)                            │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  4. SECURITY HEADERS                                                │   │
+│  │     • HSTS (1 year)                  • X-Frame-Options: DENY       │   │
+│  │     • X-XSS-Protection               • Content-Security-Policy     │   │
+│  │     • Referrer-Policy                • X-Content-Type-Options      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+                                    ▼
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          API LAYER (FastAPI)                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────┐           │
+│  │   Auth     │  │ Questions  │  │  Sessions  │  │ Analytics  │           │
+│  │  Endpoints │  │ Endpoints  │  │ Endpoints  │  │ Endpoints  │           │
+│  └────────────┘  └────────────┘  └────────────┘  └────────────┘           │
+│                                                                              │
+│  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────┐           │
+│  │   Admin    │  │  Teacher   │  │  Student   │  │    KVKK    │           │
+│  │  Endpoints │  │ Endpoints  │  │ Endpoints  │  │ Endpoints  │           │
+│  └────────────┘  └────────────┘  └────────────┘  └────────────┘           │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  TENANT SERVICE (Multi-tenancy Enforcement)                         │   │
+│  │  • Auto-inject tenant_id filter                                     │   │
+│  │  • Cross-tenant access prevention                                   │   │
+│  │  • Resource ownership verification                                  │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+                          ▼                        ▼
+
+┌────────────────────────────────┐    ┌────────────────────────────────┐
+│     BACKGROUND WORKERS         │    │      SERVICE LAYER             │
+│        (Celery)                │    │                                │
+├────────────────────────────────┤    ├────────────────────────────────┤
+│                                │    │                                │
+│  Queue: pdf                    │    │  • PDF Parser Service          │
+│  • PDF parsing (heavy)         │    │  • Trap Analyzer (AI)          │
+│  • OCR fallback                │    │  • Storage Service (MinIO)     │
+│                                │    │  • Tenant Service              │
+│  Queue: ai                     │    │  • Audit Service               │
+│  • Trap analysis               │    │                                │
+│  • Question generation         │    └────────────────────────────────┘
+│                                │
+│  Queue: export                 │
+│  • Data export (KVKK)          │
+│  • Backup generation           │
+│                                │
+└────────────────────────────────┘
+
+                                    ▼
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         DATA LAYER (PostgreSQL)                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │  MULTI-TENANT DATA ISOLATION                                         │  │
+│  ├──────────────────────────────────────────────────────────────────────┤  │
+│  │                                                                       │  │
+│  │  TENANT A (School A)            │    TENANT B (School B)             │  │
+│  │  ┌──────────────────┐           │    ┌──────────────────┐           │  │
+│  │  │ Users            │           │    │ Users            │           │  │
+│  │  │ Questions        │           │    │ Questions        │           │  │
+│  │  │ Sessions         │  ◄─────────────► ISOLATED ────────►           │  │
+│  │  │ Attempts         │           │    │ Sessions         │           │  │
+│  │  │ Audit Logs       │           │    │ Attempts         │           │  │
+│  │  └──────────────────┘           │    │ Audit Logs       │           │  │
+│  │                                  │    └──────────────────┘           │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+│  Core Tables (WITH tenant_id):                                              │
+│  • tenants            • users                • classes                      │
+│  • questions          • options              • attempts                     │
+│  • sessions           • assignments          • pdfs                         │
+│  • audit_logs         • session_devices      • refresh_tokens              │
+│                                                                              │
+│  Security Features:                                                         │
+│  • Indexed tenant_id on all tables                                          │
+│  • Foreign key constraints (CASCADE delete)                                 │
+│  • Row-level security ready (optional RLS policies)                        │
+│  • Encrypted at rest (infrastructure level)                                 │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      SUPPORTING SERVICES                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                 │
+│  │    Redis     │    │    MinIO     │    │   OpenAI     │                 │
+│  │   (Cache)    │    │  (Storage)   │    │   (AI API)   │                 │
+│  ├──────────────┤    ├──────────────┤    ├──────────────┤                 │
+│  │ • Sessions   │    │ • PDFs       │    │ • Trap       │                 │
+│  │ • Rate limit │    │ • Images     │    │   Analysis   │                 │
+│  │ • Celery     │    │ • Exports    │    │ • Question   │                 │
+│  │   broker     │    │ (Private)    │    │   Generate   │                 │
+│  └──────────────┘    └──────────────┘    └──────────────┘                 │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+
+SECURITY PRINCIPLES
+
+1. ZERO TRUST
+   • Every request authenticated
+   • Every resource tenant-scoped
+   • No implicit trust
+
+2. DEFENSE IN DEPTH
+   • Multiple security layers
+   • Middleware → Service → Database
+   • Fail securely
+
+3. LEAST PRIVILEGE
+   • Student: Own data only
+   • Teacher: Own classes only
+   • Admin: Tenant-scoped only
+
+4. AUDIT EVERYTHING
+   • All critical actions logged
+   • WHO-WHAT-WHEN-WHERE
+   • 2-year retention
+
+5. SECURITY BY DEFAULT
+   • HTTPS enforced
+   • Short-lived tokens (15 min)
+   • Secure password hashing (Argon2)
+   • Rate limiting enabled
+
+═══════════════════════════════════════════════════════════════════════════════
+
+AUTHENTICATION FLOW
+
+1. LOGIN
+   Client → [Email + Password + DeviceID]
+        ↓
+   Server → Argon2 verify (64MB, 3 iter, 4 threads)
+        ↓
+   Create: AccessToken (15 min) + RefreshToken (30 days)
+        ↓
+   Store: RefreshToken hash (SHA-256) + Device info
+        ↓
+   Audit: Log login event
+        ↓
+   Return: Tokens to client
+
+2. API REQUEST
+   Client → [AccessToken in Bearer header]
+        ↓
+   Middleware → Validate JWT
+        ↓
+   Check: Token not expired, user active
+        ↓
+   Inject: user + tenant_id to request.state
+        ↓
+   Controller → Check RBAC (role)
+        ↓
+   Service → Check ABAC (tenant/class scope)
+        ↓
+   Database → Tenant-scoped query
+        ↓
+   Return: Filtered data
+
+3. TOKEN REFRESH
+   Client → [RefreshToken + DeviceID]
+        ↓
+   Server → Hash token, lookup in DB
+        ↓
+   Check: Token valid, not expired, matches device
+        ↓
+   IF reused → INVALIDATE ALL user tokens (security breach)
+        ↓
+   ELSE → Create new tokens, invalidate old
+        ↓
+   Return: New AccessToken + RefreshToken
+
+═══════════════════════════════════════════════════════════════════════════════
+
+AUTHORIZATION MATRIX
+
+┌──────────────┬───────────────┬───────────────┬──────────────┐
+│   Resource   │   Student     │   Teacher     │    Admin     │
+├──────────────┼───────────────┼───────────────┼──────────────┤
+│ Own data     │ Read/Write    │ Read/Write    │ Read/Write   │
+│ Other users  │ ✗ Forbidden   │ ✗ Forbidden   │ Read (tenant)│
+│ Own attempts │ Read/Write    │ Read/Write    │ Read/Write   │
+│ Class data   │ ✗ Forbidden   │ Read (own)    │ Read (tenant)│
+│ Questions    │ Read (tenant) │ Read (tenant) │ Full Access  │
+│ PDF upload   │ ✗ Forbidden   │ ✗ Forbidden   │ Create       │
+│ Assignments  │ Read (assigned│ Full (own)    │ Read (tenant)│
+│ Audit logs   │ ✗ Forbidden   │ ✗ Forbidden   │ Read (tenant)│
+│ User mgmt    │ ✗ Forbidden   │ ✗ Forbidden   │ Full (tenant)│
+│ Tenant data  │ ✗ Cross-tenant│ ✗ Cross-tenant│ ✗ Cross-ten  │
+└──────────────┴───────────────┴───────────────┴──────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+
+THREAT MODEL & MITIGATIONS
+
+┌────────────────────────┬─────────────────────────────────────────────┐
+│ Threat                 │ Mitigation                                  │
+├────────────────────────┼─────────────────────────────────────────────┤
+│ Brute-force login      │ Rate limiting (5/min), Argon2 (slow)       │
+│ Token theft            │ Short-lived (15 min), rotation, HTTPS       │
+│ Token reuse            │ Reuse detection → invalidate all sessions   │
+│ Cross-tenant access    │ Tenant-scoped queries, middleware checks    │
+│ Privilege escalation   │ RBAC+ABAC, role checks at every layer      │
+│ SQL injection          │ ORM (SQLAlchemy), parameterized queries     │
+│ XSS                    │ Auto-escaping (FastAPI), CSP headers        │
+│ CSRF                   │ SameSite cookies, CORS whitelist            │
+│ DDoS                   │ Rate limiting, WAF (production)             │
+│ Data leakage           │ Audit logs, tenant isolation, encryption    │
+│ Password attacks       │ Argon2id (memory-hard), complexity rules    │
+│ Session hijacking      │ Device tracking, logout-all feature         │
+│ Insider threat         │ Audit logs, least privilege, RBAC           │
+└────────────────────────┴─────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+
+Last Updated: 2024-02-17
+Version: 2.0.0 (Enterprise Security)
+Classification: INTERNAL USE
