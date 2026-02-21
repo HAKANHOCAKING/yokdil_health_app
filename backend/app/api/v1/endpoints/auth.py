@@ -80,12 +80,12 @@ async def login(
     await db.commit()
     
     # Create tokens
-    access_token = create_access_token(data={"sub": str(user.id), "role": user.role})
-    refresh_token = create_refresh_token(data={"sub": str(user.id)})
-    
+    access_token = create_access_token(data={"sub": str(user.id), "role": user.role.value if hasattr(user.role, 'value') else str(user.role)})
+    refresh_token_str, _ = create_refresh_token(user_id=str(user.id), device_id="default")
+
     return Token(
         access_token=access_token,
-        refresh_token=refresh_token,
+        refresh_token=refresh_token_str,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
 

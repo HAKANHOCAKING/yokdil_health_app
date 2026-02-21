@@ -55,11 +55,7 @@ dev_dependencies:
 
   # Code Generation
   build_runner: ^2.4.7
-  riverpod_generator: ^2.3.11
-  retrofit_generator: ^8.1.0
   json_serializable: ^6.7.1
-  drift_dev: ^2.14.1
-  freezed: ^2.4.6
 
   # Linting
   flutter_lints: ^3.0.1
